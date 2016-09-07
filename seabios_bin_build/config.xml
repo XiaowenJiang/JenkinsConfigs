@@ -1,0 +1,124 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>this job is used to create seabios.bin</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>SEABIOS_BRANCH</name>
+          <description>which branch of seabios is used to compile</description>
+          <defaultValue>master</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>SEABIOS_VERSION</name>
+          <description>the version number of qemu package
+build number of this job will be used if this parameter is not set</description>
+          <defaultValue>1.0</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>IF_UPLOAD</name>
+          <description>choose if this .deb should be uploaded to bintray</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>YES</string>
+              <string>NO</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>IF_TAG</name>
+          <description>choose if this job would add tag to the seabios repo</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>YES</string>
+              <string>NO</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <assignedNode>Infrasim_Application</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+bios_name_pre=&quot;infrasim-seabios&quot;
+API_KEY=90216e8debe7a43759d3f82ffa4d7b8f7afa94a8
+UNAME=infrasim
+REPO=&quot;generic&quot;
+PACKAGE=&quot;Seabios&quot;
+BASE_URL=https://api.bintray.com
+CURL=&quot;curl -u$UNAME:$API_KEY -H Content-Type:application/json -H Accept:application/json&quot;
+
+
+[ -d seabios ] &amp;&amp; echo &quot;Infrasim&quot; | sudo -S rm -rf seabios
+git clone git@eos2git.cec.lab.emc.com:InfraSIM/seabios.git seabios
+
+#make bios.bin
+pushd seabios
+git checkout ${SEABIOS_BRANCH}
+
+# add tag
+if [ ${IF_TAG} == &quot;YES&quot; ]; then
+timestamp=`date +%Y%m%d%H%M%S`
+tag_name=&quot;${SEABIOS_BRANCH}&quot;_&quot;${timestamp}&quot;_&quot;bios_bin_build&quot;_&quot;${BUILD_NUMBER}&quot;
+git tag -a $tag_name -m &quot;tag for ${SEABIOS_BRANCH}&quot;
+git push origin $tag_name
+echo &quot;the tag is added into repo: ${tag_name}&quot;
+fi
+
+make
+popd
+
+pushd seabios/out
+if [ ! -f bios.bin ]; then
+	echo &quot;seabios bin file not generated!&quot;
+    exit 1
+fi
+
+base_os=&quot;`cat /etc/issue | awk &apos;{b=$1$2; print tolower(b)}&apos;`&quot;
+
+FILENAME=&quot;${bios_name_pre}_${SEABIOS_VERSION}-${BUILD_NUMBER}${base_os}_amd64.bin&quot;
+mv bios.bin $FILENAME
+
+if [ ${IF_UPLOAD} == &quot;YES&quot; ]; then
+${CURL} -T $FILENAME -u$UNAME:$API_KEY -X PUT \
+$BASE_URL/content/$UNAME/$REPO/$PACKAGE/${SEABIOS_VERSION}/$FILENAME \
+-H &quot;X-Bintray-Publish:1&quot; -H &quot;X-Bintray-Override:1&quot;
+
+sleep 10s 
+
+
+${CURL} -X PUT $BASE_URL/file_metadata/$UNAME/$REPO/$FILENAME -d &quot;{\&quot;list_in_downloads\&quot;:\&quot;true\&quot;}&quot;
+fi
+
+popd</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>seabios/out/*.bin</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
+    </hudson.tasks.ArtifactArchiver>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.timestamper.TimestamperBuildWrapper plugin="timestamper@1.7.4"/>
+    <hudson.plugins.ansicolor.AnsiColorBuildWrapper plugin="ansicolor@0.4.2">
+      <colorMapName>xterm</colorMapName>
+    </hudson.plugins.ansicolor.AnsiColorBuildWrapper>
+  </buildWrappers>
+</project>

@@ -1,0 +1,129 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>this job is used to create qemu deb package</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>QEMU_BRANCH</name>
+          <description>which branch of qemu is used to compile</description>
+          <defaultValue>infrasim-qemu-v2.6.0</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>QEMU_VERSION</name>
+          <description>the version number of qemu package
+build number of this job will be used if this parameter is not set</description>
+          <defaultValue>1.0</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>IF_UPLOAD</name>
+          <description>choose if this .deb should be uploaded to bintray</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>YES</string>
+              <string>NO</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>IF_TAG</name>
+          <description>choose if a new tag should be added to qemu repo.</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>YES</string>
+              <string>NO</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@2.5.2">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/InfraSIM/tools.git</url>
+        <credentialsId>5200afae-5e24-4118-93e1-415394ab8797</credentialsId>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/master</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions>
+      <hudson.plugins.git.extensions.impl.RelativeTargetDirectory>
+        <relativeTargetDir>tools</relativeTargetDir>
+      </hudson.plugins.git.extensions.impl.RelativeTargetDirectory>
+    </extensions>
+  </scm>
+  <assignedNode>Infrasim_Application</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+qemu_name_pre=&quot;infrasim-qemu&quot;
+
+if [ ! -d tools ]; then
+    echo &quot;failed to clone tools&quot;
+    exit 1
+fi
+
+[ -d qemu ] &amp;&amp; echo &quot;Infrasim&quot; | sudo -S rm -rf qemu
+git clone https://emcinfrasim:emcinfrasim126@github.com/InfraSIM/qemu.git qemu
+pushd qemu
+git checkout ${QEMU_BRANCH}
+
+# add tag
+if [ ${IF_TAG} == &quot;YES&quot; ]; then
+timestamp=`date +%Y%m%d%H%M%S`
+tag_name=&quot;${QEMU_BRANCH}&quot;_&quot;${timestamp}&quot;_&quot;qemu_package_build&quot;_&quot;${BUILD_NUMBER}&quot;
+git tag -a $tag_name -m &quot;tag for ${QEMU_BRANCH}&quot;
+git push origin $tag_name
+echo &quot;the tag is added into repo: ${tag_name}&quot;
+fi
+
+git submodule update --init pixman
+qemu_branch=`cat VERSION`
+base_os=&quot;`cat /etc/issue | awk &apos;{b=$1$2; print tolower(b)}&apos;`&quot;
+echo &quot;${qemu_name_pre}_${qemu_branch}-${QEMU_VERSION}.${BUILD_NUMBER}${base_os}&quot;  &gt; VERSION
+popd
+
+pushd tools/deb_builder/
+echo &quot;Infrasim&quot; | sudo -S chmod +x qemu-package.sh
+echo &quot;Infrasim&quot; | sudo -S ./qemu-package.sh --source-path ../../qemu --pkgname ${qemu_name_pre} --pkgversion ${qemu_branch} \
+--pkgrelease &quot;${QEMU_VERSION}.${BUILD_NUMBER}${base_os}&quot;
+popd
+
+if [ ${IF_UPLOAD} == &quot;YES&quot; ]; then
+../infrasim_build/shell/uploaddeb.sh ${QEMU_VERSION} Qemu ${qemu_name_pre}_${qemu_branch}-${QEMU_VERSION}.${BUILD_NUMBER}${base_os}_amd64.deb ${WORKSPACE}/qemu
+fi</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>qemu/*.deb</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
+    </hudson.tasks.ArtifactArchiver>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.timestamper.TimestamperBuildWrapper plugin="timestamper@1.7.4"/>
+    <hudson.plugins.ansicolor.AnsiColorBuildWrapper plugin="ansicolor@0.4.2">
+      <colorMapName>xterm</colorMapName>
+    </hudson.plugins.ansicolor.AnsiColorBuildWrapper>
+  </buildWrappers>
+</project>

@@ -1,0 +1,134 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>OPENIPMI_BRANCH</name>
+          <description>which branch of openipmi is used to compile</description>
+          <defaultValue>infrasim-openipmi-2.0.22</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>OPENIPMI_VERSION</name>
+          <description>the version number of openipmi package
+build number of this job will be used if this parameter is not set</description>
+          <defaultValue>1.0</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>IF_UPLOAD</name>
+          <description>choose if this .deb should be uploaded to bintray</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>YES</string>
+              <string>NO</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>IF_TAG</name>
+          <description>choose if a new tag should be added to the openipmi repo</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>YES</string>
+              <string>NO</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@2.5.2">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/InfraSIM/tools.git</url>
+        <credentialsId>5200afae-5e24-4118-93e1-415394ab8797</credentialsId>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/master</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions>
+      <hudson.plugins.git.extensions.impl.RelativeTargetDirectory>
+        <relativeTargetDir>tools</relativeTargetDir>
+      </hudson.plugins.git.extensions.impl.RelativeTargetDirectory>
+    </extensions>
+  </scm>
+  <assignedNode>Infrasim_Application</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+ipmi_name_pre=&quot;infrasim-openipmi&quot;
+
+
+if [ ! -d tools ]; then
+   echo &quot;fail to clone tools!&quot;
+   exit 1
+fi
+
+[ -d openipmi ] &amp;&amp; echo &quot;Infrasim&quot; | sudo -S rm -rf openipmi
+git clone https://emcinfrasim:emcinfrasim126@github.com/InfraSIM/openipmi.git openipmi
+pushd openipmi
+git checkout ${OPENIPMI_BRANCH}
+
+if [ ${IF_TAG} == &quot;YES&quot; ]; then
+#add tag
+timestamp=`date +%Y%m%d%H%M%S`
+tag_name=&quot;${OPENIPMI_BRANCH}&quot;_&quot;${timestamp}&quot;_&quot;openipmi_package_build&quot;_&quot;${BUILD_NUMBER}&quot;
+git tag -a ${tag_name} -m &quot;tag for ${OPENIPMI_BRANCH}&quot;
+git push origin $tag_name
+echo &quot;the tag is added into repo: ${tag_name}&quot;
+fi
+
+base_os=&quot;`cat /etc/issue | awk &apos;{b=$1$2; print tolower(b)}&apos;`&quot;
+
+popd
+pushd openipmi/lanserv
+#IPMISIM_VERSION=`cat Makefile.am | grep &quot;^PVERSION&quot; | awk -F &quot;=&quot; &apos;{print $2}&apos; | tr -d &apos;&quot;&apos; `
+IFS=&apos;-&apos; read -ra NAMES &lt;&lt;&lt; &quot;$OPENIPMI_BRANCH&quot;
+IPMISIM_VERSION=${NAMES[2]}
+sed -i &quot;s/^\(PVERSION=\)\&quot;\(.*\)\&quot;/\1\&quot;${ipmi_name_pre}_${IPMISIM_VERSION}-${OPENIPMI_VERSION}.${BUILD_NUMBER}${base_os}\&quot;/g&quot; Makefile.am
+popd
+
+pushd tools/deb_builder/
+echo &quot;Infrasim&quot; | sudo -S chmod +x openipmi-package.sh
+echo &quot;Infrasim&quot; | sudo -S ./openipmi-package.sh --source-path ../../openipmi --pkgname ${ipmi_name_pre} \
+--pkgversion ${IPMISIM_VERSION} --pkgrelease &quot;${OPENIPMI_VERSION}.${BUILD_NUMBER}${base_os}&quot;
+popd
+
+if [ ${IF_UPLOAD} == &quot;YES&quot; ]; then
+   ../infrasim_build/shell/uploaddeb.sh ${OPENIPMI_VERSION} OpenIpmi ${ipmi_name_pre}_${IPMISIM_VERSION}-${OPENIPMI_VERSION}.${BUILD_NUMBER}${base_os}_amd64.deb ${WORKSPACE}/openipmi
+fi</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>openipmi/*.deb</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
+    </hudson.tasks.ArtifactArchiver>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.timestamper.TimestamperBuildWrapper plugin="timestamper@1.7.4"/>
+    <hudson.plugins.ansicolor.AnsiColorBuildWrapper plugin="ansicolor@0.4.2">
+      <colorMapName>xterm</colorMapName>
+    </hudson.plugins.ansicolor.AnsiColorBuildWrapper>
+  </buildWrappers>
+</project>

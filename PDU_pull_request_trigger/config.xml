@@ -1,0 +1,253 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>enable smoke test for vpduserv repo</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <com.coravy.hudson.plugins.github.GithubProjectProperty plugin="github@1.19.0">
+      <projectUrl>https://github.com/InfraSIM/vpduserv/</projectUrl>
+      <displayName></displayName>
+    </com.coravy.hudson.plugins.github.GithubProjectProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@2.4.4">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <name>origin</name>
+        <refspec>+refs/heads/*:refs/remotes/origin/* +refs/pull/*:refs/remotes/origin/pr/*</refspec>
+        <url>https://github.com/InfraSIM/vpduserv.git</url>
+        <credentialsId>5200afae-5e24-4118-93e1-415394ab8797</credentialsId>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>origin/master</name>
+      </hudson.plugins.git.BranchSpec>
+      <hudson.plugins.git.BranchSpec>
+        <name>${sha1}</name>
+      </hudson.plugins.git.BranchSpec>
+      <hudson.plugins.git.BranchSpec>
+        <name>$GIT_REFSPEC</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions>
+      <hudson.plugins.git.extensions.impl.RelativeTargetDirectory>
+        <relativeTargetDir>vpduserv</relativeTargetDir>
+      </hudson.plugins.git.extensions.impl.RelativeTargetDirectory>
+      <hudson.plugins.git.extensions.impl.WipeWorkspace/>
+      <hudson.plugins.git.extensions.impl.PathRestriction>
+        <includedRegions></includedRegions>
+        <excludedRegions>${WORKSPACE}/vpduserv/third-party/ecdsa/.*\.md
+${WORKSPACE}/vpduserv/third-party/sshim/.*\.md
+${WORKSPACE}/vpduserv/.*\.md</excludedRegions>
+      </hudson.plugins.git.extensions.impl.PathRestriction>
+      <hudson.plugins.git.extensions.impl.DisableRemotePoll/>
+    </extensions>
+  </scm>
+  <assignedNode>durham_build_server</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers>
+    <org.jenkinsci.plugins.ghprb.GhprbTrigger plugin="ghprb@1.31.4">
+      <spec>H/2 * * * *</spec>
+      <latestVersion>3</latestVersion>
+      <configVersion>3</configVersion>
+      <adminlist>emcinfrasim</adminlist>
+      <allowMembersOfWhitelistedOrgsAsAdmin>false</allowMembersOfWhitelistedOrgsAsAdmin>
+      <orgslist>InfraSIM</orgslist>
+      <cron>H/2 * * * *</cron>
+      <buildDescTemplate></buildDescTemplate>
+      <onlyTriggerPhrase>false</onlyTriggerPhrase>
+      <useGitHubHooks>false</useGitHubHooks>
+      <permitAll>false</permitAll>
+      <whitelist></whitelist>
+      <autoCloseFailedPullRequests>false</autoCloseFailedPullRequests>
+      <displayBuildErrorsOnDownstreamBuilds>true</displayBuildErrorsOnDownstreamBuilds>
+      <whiteListTargetBranches>
+        <org.jenkinsci.plugins.ghprb.GhprbBranch>
+          <branch></branch>
+        </org.jenkinsci.plugins.ghprb.GhprbBranch>
+      </whiteListTargetBranches>
+      <gitHubAuthId>c8c8b1ae-2bbc-47d1-9587-a3ea5851e766</gitHubAuthId>
+      <triggerPhrase></triggerPhrase>
+      <extensions>
+        <org.jenkinsci.plugins.ghprb.extensions.comments.GhprbBuildStatus>
+          <messages>
+            <org.jenkinsci.plugins.ghprb.extensions.comments.GhprbBuildResultMessage>
+              <message></message>
+              <result>SUCCESS</result>
+            </org.jenkinsci.plugins.ghprb.extensions.comments.GhprbBuildResultMessage>
+          </messages>
+        </org.jenkinsci.plugins.ghprb.extensions.comments.GhprbBuildStatus>
+        <org.jenkinsci.plugins.ghprb.extensions.status.GhprbSimpleStatus>
+          <commitStatusContext>Jenkins</commitStatusContext>
+          <triggeredStatus></triggeredStatus>
+          <startedStatus></startedStatus>
+          <statusUrl></statusUrl>
+          <addTestResults>true</addTestResults>
+        </org.jenkinsci.plugins.ghprb.extensions.status.GhprbSimpleStatus>
+      </extensions>
+    </org.jenkinsci.plugins.ghprb.GhprbTrigger>
+  </triggers>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+echo &quot;start to get the latest codes&quot;
+if [ -d vpduserv ];then
+    pushd vpduserv
+    echo &quot;show the latest 5commits of vpduserv:&quot;
+    git log --no-merges -n 5 | grep &quot;^commit &quot; | awk &apos;{print $2}&apos;
+    popd
+else
+    echo &quot;fails to clone vpduserv repo&quot;
+    exit 1
+fi
+
+echo &quot;update idic repo&quot;
+if [ -d idic ];then 
+	pushd idic
+    git pull https://emcinfrasim:Happy666\!@github.com/InfraSIM/idic.git
+    popd
+else
+    git clone https://emcinfrasim:Happy666\!@github.com/InfraSIM/idic.git
+fi
+
+echo &quot;update tools repo&quot;
+if [ -d tools ];then 
+	pushd tools
+    git pull https://emcinfrasim:Happy666\!@github.com/InfraSIM/tools.git
+    rm -f ova_builder/*.ova
+    popd
+else
+    git clone https://emcinfrasim:Happy666\!@github.com/InfraSIM/tools.git
+fi
+
+echo &quot;update utilities repo&quot;
+if [ -d utilities ];then 
+	pushd utilities
+    git pull git@eos2git.cec.lab.emc.com:InfraSIM/utilities.git
+    popd
+else
+    git clone git@eos2git.cec.lab.emc.com:InfraSIM/utilities.git
+fi
+
+pushd idic/pdk/content
+[ ! -d build ] &amp;&amp; mkdir build
+rm -rf build/*
+cp -r ${WORKSPACE}/vpduserv build/
+popd
+
+[ -f ./junit_task.xml ] &amp;&amp; rm junit_task.xml
+echo &quot;source code is ready for build&quot;</command>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+cp utilities/build/build.sh ./
+
+echo &quot;start to build hawk&quot;
+./build.sh hawk
+pushd tools/ova_builder
+sudo ./ova_builder.sh -d ../../idic/pdk/linux/hawk/ -t vpdu_hawk_pr.ova
+sudo chmod 777 vpdu_hawk_pr.ova
+popd
+
+sleep 30
+
+echo &quot;start build compute node&quot;
+NODE_TYPES=(quanta_d51 quanta_t41 dell_c6320 dell_r630 s2600tp s2600kp s2600wtt dell_r730xd)
+NODE_NUM=${#NODE_TYPES[@]}
+echo $NODE_NUM
+selected=`expr $BUILD_NUMBER % $NODE_NUM`
+NODE_TYPE=${NODE_TYPES[$selected]}
+echo $NODE_TYPE&quot; is selected for this smoke test&quot;
+
+./build.sh ${NODE_TYPE}
+pushd tools/ova_builder
+sudo ./ova_builder.sh -d ../../idic/pdk/linux/${NODE_TYPE}/ -t vbmc_${NODE_TYPE}_pr.ova
+sudo chmod 777 vbmc_${NODE_TYPE}_pr.ova
+
+
+../../../infrasim_build/shell/scp_transfer.exp 10.62.59.99 idicwebui 1234567 vpdu_hawk_pr.ova /home/idicwebui/yukisf/github/vracksystem_private/ova
+../../../infrasim_build/shell/scp_transfer.exp 10.62.59.99 idicwebui 1234567 vbmc_${NODE_TYPE}_pr.ova /home/idicwebui/yukisf/github/vracksystem_private/ova
+popd
+
+
+[ -f ova_file ] &amp;&amp; rm ova_file
+python ../infrasim_build/create_file.py ova_file &quot;vbmc_${NODE_TYPE}_pr.ova ${WORKSPACE}&quot;
+../infrasim_build/shell/scp_transfer.exp 10.62.59.66 ci pei870606 ova_file /home/ci/workspace/smoke_test</command>
+    </hudson.tasks.Shell>
+    <hudson.plugins.parameterizedtrigger.TriggerBuilder plugin="parameterized-trigger@2.30">
+      <configs>
+        <hudson.plugins.parameterizedtrigger.BlockableBuildTriggerConfig>
+          <configs>
+            <hudson.plugins.parameterizedtrigger.PredefinedBuildParameters>
+              <properties>parameter_file_path=${WORKSPACE}/ova_file</properties>
+            </hudson.plugins.parameterizedtrigger.PredefinedBuildParameters>
+          </configs>
+          <projects>smoke_test</projects>
+          <condition>ALWAYS</condition>
+          <triggerWithNoParameters>false</triggerWithNoParameters>
+          <block>
+            <buildStepFailureThreshold>
+              <name>FAILURE</name>
+              <ordinal>2</ordinal>
+              <color>RED</color>
+              <completeBuild>true</completeBuild>
+            </buildStepFailureThreshold>
+            <unstableThreshold>
+              <name>UNSTABLE</name>
+              <ordinal>1</ordinal>
+              <color>YELLOW</color>
+              <completeBuild>true</completeBuild>
+            </unstableThreshold>
+            <failureThreshold>
+              <name>FAILURE</name>
+              <ordinal>2</ordinal>
+              <color>RED</color>
+              <completeBuild>true</completeBuild>
+            </failureThreshold>
+          </block>
+          <buildAllNodesWithLabel>false</buildAllNodesWithLabel>
+        </hudson.plugins.parameterizedtrigger.BlockableBuildTriggerConfig>
+      </configs>
+    </hudson.plugins.parameterizedtrigger.TriggerBuilder>
+    <hudson.tasks.Shell>
+      <command>[ ! -f .ghtoken ] &amp;&amp; cp ../infrasim_build/.ghtoken ./
+[ ! -f junit_task.xml ] &amp;&amp; cp ../infrasim_build/junit_task_error.xml junit_task.xml
+python ../infrasim_build/xml_analysis.py &quot;https://api.github.com/repos/InfraSIM/vpduserv/issues/$ghprbPullId/comments&quot; junit_task.xml ${JOB_NAME}</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.junit.JUnitResultArchiver plugin="junit@1.13">
+      <testResults>junit_task.xml</testResults>
+      <keepLongStdio>true</keepLongStdio>
+      <healthScaleFactor>1.0</healthScaleFactor>
+      <allowEmptyResults>false</allowEmptyResults>
+    </hudson.tasks.junit.JUnitResultArchiver>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>junit_task.xml</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
+    </hudson.tasks.ArtifactArchiver>
+    <com.cloudbees.jenkins.GitHubCommitNotifier plugin="github@1.19.0">
+      <statusMessage>
+        <content></content>
+      </statusMessage>
+      <resultOnFailure>FAILURE</resultOnFailure>
+    </com.cloudbees.jenkins.GitHubCommitNotifier>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.timestamper.TimestamperBuildWrapper plugin="timestamper@1.7.4"/>
+    <hudson.plugins.ansicolor.AnsiColorBuildWrapper plugin="ansicolor@0.4.2">
+      <colorMapName>xterm</colorMapName>
+    </hudson.plugins.ansicolor.AnsiColorBuildWrapper>
+  </buildWrappers>
+</project>

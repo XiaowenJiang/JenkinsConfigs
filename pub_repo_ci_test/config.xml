@@ -1,0 +1,121 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@2.5.2">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/InfraSIM/test.git</url>
+        <credentialsId>5200afae-5e24-4118-93e1-415394ab8797</credentialsId>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/master</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions>
+      <hudson.plugins.git.extensions.impl.RelativeTargetDirectory>
+        <relativeTargetDir>test</relativeTargetDir>
+      </hudson.plugins.git.extensions.impl.RelativeTargetDirectory>
+      <hudson.plugins.git.extensions.impl.LocalBranch>
+        <localBranch>master</localBranch>
+      </hudson.plugins.git.extensions.impl.LocalBranch>
+    </extensions>
+  </scm>
+  <assignedNode>ci_test</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+new_files=&quot;vbmc_dell_r730xd_pub.ova vbmc_dell_r630_pub.ova vbmc_dell_c6320_pub.ova vbmc_quanta_d51_pub.ova vbmc_quanta_t41_pub.ova vbmc_s2600kp_pub.ova vbmc_s2600tp_pub.ova vbmc_s2600wtt_pub.ova vpdu_hawk_pub.ova&quot;
+if [ ! -d test ]; then
+    echo &quot;fails to clone test scripts&quot;
+    exit 1
+fi
+
+if [ -f test.json ]; then
+	rm -rf test.json
+fi
+
+echo &quot;update test config files&quot;
+cp test_config/conf.xml test/
+cp test_config/stack_requirement.json test/configure/
+
+pushd test/utilities
+commit=`git log -n 1 | grep &quot;^commit &quot; | awk &apos;{print $2}&apos;`
+echo &quot;the latest commit of Puffer is $commit&quot;
+
+echo &quot;start to deploy vracksystem&quot;
+python Util_Manipulate.py -f stack_requirement.json -l $new_files -d 10
+
+if [ ! -f ../../test.json ]; then
+    echo &quot;ERROR: vrack configure file is not genereated&quot;
+    exit 1
+fi
+echo &quot;end to deploy vracksystem&quot;
+popd
+
+pushd test
+echo &quot;start to run Puffer scripts on OnRack&quot;
+alais=&quot;Public_Repo_Daily_CI&quot;
+echo &quot;workspace: ${WORKSPACE}&quot;
+python puffer.py  --stack=&quot;${WORKSPACE}/test.json&quot; -s infrasim/virtual_bmc,infrasim/virtual_node,infrasim/virtual_pdu,infrasim/virtual_bmc,infrasim/virtual_node -a $alais -e
+
+#python puffer.py  --stack=&quot;${WORKSPACE}/test.json&quot; -s infrasim/virtual_bmc,infrasim/virtual_node -a $alais -e
+#python puffer.py  --stack=&quot;${WORKSPACE}/test.json&quot; -s infrasim/virtual_pdu -a $alais -e
+#python puffer.py  --stack=&quot;${WORKSPACE}/test.json&quot; -s infrasim/virtual_bmc,infrasim/virtual_node -a $alais -e
+
+echo &quot;end to run Puffer scripts&quot;
+popd
+
+echo &quot;save the artifact info&quot;
+if [ -d last_build_info ]; then
+    echo &quot;clean last_build_info&quot;
+    rm -rf last_build_info/*
+else
+    echo &quot;mkdir last_build_info&quot;
+    mkdir last_build_info
+fi
+log_folder=&quot;${WORKSPACE}/test/log/InfraSIM/&quot; 
+test_log=`ls $log_folder -t |  head -1`
+echo &quot;the new test log is $test_log&quot;
+cp -rf $log_folder$test_log ./last_build_info/test_log</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>test.json,last_build_info/junit_task.xml</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
+    </hudson.tasks.ArtifactArchiver>
+    <hudson.tasks.junit.JUnitResultArchiver plugin="junit@1.15">
+      <testResults>last_build_info/test_log/junit_task.xml</testResults>
+      <keepLongStdio>false</keepLongStdio>
+      <testDataPublishers>
+        <de.esailors.jenkins.teststability.StabilityTestDataPublisher plugin="test-stability@1.0"/>
+      </testDataPublishers>
+      <healthScaleFactor>1.0</healthScaleFactor>
+      <allowEmptyResults>false</allowEmptyResults>
+    </hudson.tasks.junit.JUnitResultArchiver>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.timestamper.TimestamperBuildWrapper plugin="timestamper@1.7.4"/>
+    <hudson.plugins.ansicolor.AnsiColorBuildWrapper plugin="ansicolor@0.4.2">
+      <colorMapName>xterm</colorMapName>
+    </hudson.plugins.ansicolor.AnsiColorBuildWrapper>
+  </buildWrappers>
+</project>

@@ -1,0 +1,127 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <assignedNode>durham_build_server</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers>
+    <hudson.triggers.TimerTrigger>
+      <spec>00 20 * * *</spec>
+    </hudson.triggers.TimerTrigger>
+  </triggers>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+public_repos=&quot;idic tools test vpduserv&quot;
+
+private_repos=&quot;test_private utilities&quot;
+
+../infrasim_build/shell/tag_creation.sh &quot;master&quot; &quot;${public_repos}&quot; &quot;${private_repos}&quot;
+../infrasim_build/shell/tag_creation.sh &quot;infrasim-qemu-v2.6.0&quot; &quot;qemu&quot;
+../infrasim_build/shell/tag_creation.sh &quot;infrasim-openipmi-2.0.22&quot; &quot;openipmi&quot;
+
+pushd idic/pdk/content
+mkdir build
+cp -r ../../../qemu build/&quot;qemu-master&quot;
+cp -r ../../../openipmi build/&quot;OpenIPMI-master&quot;
+cp -r ../../../vpduserv build/vpduserv
+popd
+
+cp ../infrasim_build/mkfiles/*.mk ${WORKSPACE}/idic/pdk/content/mkfiles/
+
+pushd ..
+nodes=&quot;quanta_d51 quanta_t41 s2600tp s2600kp s2600wtt dell_r630 dell_c6320 dell_r730xd hawk&quot;
+for node in $nodes
+do
+    folder=&quot;${node}_daily_build&quot;
+    rm -rf $folder/*
+    cp -rf ${WORKSPACE}/idic $folder/
+    cp -rf ${WORKSPACE}/utilities $folder/
+    cp -rf ${WORKSPACE}/tools $folder/
+done
+
+./infrasim_build/shell/scp_transfer.exp 10.62.59.66 ci pei870606 ${WORKSPACE}/test /home/ci/workspace/pub_repo_ci_test
+popd
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <join.JoinTrigger plugin="join@1.19">
+      <joinProjects>pub_repo_ci_test, OnRack_integrate_ci_test</joinProjects>
+      <joinPublishers/>
+      <evenIfDownstreamUnstable>true</evenIfDownstreamUnstable>
+    </join.JoinTrigger>
+    <hudson.plugins.parameterizedtrigger.BuildTrigger plugin="parameterized-trigger@2.30">
+      <configs>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs class="empty-list"/>
+          <projects>hawk_daily_build</projects>
+          <condition>FAILED_OR_BETTER</condition>
+          <triggerWithNoParameters>true</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs class="empty-list"/>
+          <projects>quanta_t41_daily_build</projects>
+          <condition>FAILED_OR_BETTER</condition>
+          <triggerWithNoParameters>true</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs class="empty-list"/>
+          <projects>quanta_d51_daily_build</projects>
+          <condition>FAILED_OR_BETTER</condition>
+          <triggerWithNoParameters>true</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs class="empty-list"/>
+          <projects>s2600kp_daily_build</projects>
+          <condition>FAILED_OR_BETTER</condition>
+          <triggerWithNoParameters>true</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs class="empty-list"/>
+          <projects>dell_c6320_daily_build</projects>
+          <condition>FAILED_OR_BETTER</condition>
+          <triggerWithNoParameters>true</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs class="empty-list"/>
+          <projects>dell_r630_daily_build</projects>
+          <condition>FAILED_OR_BETTER</condition>
+          <triggerWithNoParameters>true</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs class="empty-list"/>
+          <projects>s2600tp_daily_build</projects>
+          <condition>FAILED_OR_BETTER</condition>
+          <triggerWithNoParameters>true</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs class="empty-list"/>
+          <projects>s2600wtt_daily_build</projects>
+          <condition>FAILED_OR_BETTER</condition>
+          <triggerWithNoParameters>true</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs class="empty-list"/>
+          <projects>dell_r730xd_daily_build</projects>
+          <condition>FAILED_OR_BETTER</condition>
+          <triggerWithNoParameters>true</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+      </configs>
+    </hudson.plugins.parameterizedtrigger.BuildTrigger>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.timestamper.TimestamperBuildWrapper plugin="timestamper@1.7.4"/>
+    <hudson.plugins.ansicolor.AnsiColorBuildWrapper plugin="ansicolor@0.4.2">
+      <colorMapName>xterm</colorMapName>
+    </hudson.plugins.ansicolor.AnsiColorBuildWrapper>
+  </buildWrappers>
+</project>

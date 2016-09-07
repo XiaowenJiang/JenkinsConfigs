@@ -1,0 +1,82 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>this job is used for s2600tp release build</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>HW_TYPE</name>
+          <description>which node is built</description>
+          <defaultValue>s2600tp</defaultValue>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <assignedNode>durham_build_server</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+../infrasim_build/shell/infrasim_repo_clone.sh ${tag}
+cp -f ../infrasim_build/mkfiles/*.mk ${WORKSPACE}/idic/pdk/content/mkfiles/
+
+echo &quot;start to do the build&quot;
+[ -d utilities ] &amp;&amp; rm -rf utilities
+git clone git@eos2git.cec.lab.emc.com:InfraSIM/utilities.git
+if [ -d utilities ]; then
+    cp utilities/build/build.sh ./
+else
+    echo &quot;failed to clone utilities&quot;
+    exit 1
+fi
+
+./build.sh ${HW_TYPE}
+
+echo &quot;start to generate the OVA file&quot;
+
+pushd tools
+
+BRANCH=`echo ${tag} | awk -F &apos;_&apos; &apos;{print $1}&apos; `
+
+pushd ova_builder
+sudo ./ova_builder.sh -d ../../idic/pdk/linux/${HW_TYPE}/ -t vbmc_${HW_TYPE}_${BRANCH}_${BUILD_NUMBER}.ova
+if [ ! -f vbmc_${HW_TYPE}_${BRANCH}_${BUILD_NUMBER}.ova ]; then
+    echo &quot;OVA file is not generated&quot;
+    exit 1
+fi
+sudo chmod 777 vbmc_${HW_TYPE}_${BRANCH}_${BUILD_NUMBER}.ova
+popd
+
+echo &quot;start to generate the box&quot;
+pushd virtualbox_builder
+sudo ./virtualbox_builder.sh -d ../../idic/pdk/linux/${HW_TYPE}/ -n ${HW_TYPE}
+popd
+popd</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>tools/ova_builder/*.ova,idic/pdk/linux/${HW_TYPE}/*,tools/virtualbox_builder/*.box</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
+    </hudson.tasks.ArtifactArchiver>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.timestamper.TimestamperBuildWrapper plugin="timestamper@1.7.4"/>
+    <hudson.plugins.ansicolor.AnsiColorBuildWrapper plugin="ansicolor@0.4.2">
+      <colorMapName>xterm</colorMapName>
+    </hudson.plugins.ansicolor.AnsiColorBuildWrapper>
+  </buildWrappers>
+</project>

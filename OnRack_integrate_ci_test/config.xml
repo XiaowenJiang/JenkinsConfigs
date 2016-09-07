@@ -1,0 +1,157 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>ova_path</name>
+          <description></description>
+          <defaultValue>ftp://10.62.59.23/ova/ova-releases/onrack-ora-release-1.2.2/onrack-ora-release-1.2.2.ova</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>onrack_name</name>
+          <description></description>
+          <defaultValue>OnRack_CI_122</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>host_credential</name>
+          <description></description>
+          <defaultValue>root:cisolution@192.168.190.5</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>datastore</name>
+          <description></description>
+          <defaultValue>isilon_ds_lykan_5</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>network</name>
+          <description></description>
+          <defaultValue>VM Network,CI_test,CI_test</defaultValue>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@2.4.4">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>git@eos2git.cec.lab.emc.com:InfraSIM/test_private.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/master</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions>
+      <hudson.plugins.git.extensions.impl.RelativeTargetDirectory>
+        <relativeTargetDir>test_private</relativeTargetDir>
+      </hudson.plugins.git.extensions.impl.RelativeTargetDirectory>
+      <hudson.plugins.git.extensions.impl.LocalBranch>
+        <localBranch>master</localBranch>
+      </hudson.plugins.git.extensions.impl.LocalBranch>
+    </extensions>
+  </scm>
+  <assignedNode>ci_test</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>true</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+new_files=&quot;vbmc_dell_c6320_pub.ova  vbmc_quanta_d51_pub.ova  vbmc_s2600kp_pub.ova  vbmc_s2600wtt_pub.ova vbmc_dell_r630_pub.ova   vbmc_quanta_t41_pub.ova  vbmc_s2600tp_pub.ova  vpdu_hawk_pub.ova&quot;
+
+echo &quot;check the test repo&quot;
+if [ ! -d test_private ]; then
+    echo &quot;fails to clone test scripts&quot;
+    exit 1
+fi
+
+echo &quot;start to deploy OnRack&quot;
+pushd ../infrasim_build/onrackBuilder
+rm -f log/tmp.log
+sudo python deploy.py -n $onrack_name -d &quot;$datastore&quot; --host=&quot;$host_credential&quot; --net=&quot;$network&quot; --path=&quot;$ova_path&quot;
+
+echo &quot;check if the dynamic IP is got&quot;
+if [ ! -f log/tmp.log ]; then
+    echo &quot;ERROR: there is no tmp log, deployment fails&quot;
+    exit 1
+else
+    onrack_ip=`cat log/tmp.log | grep &quot;Received IP address: 192&quot; | awk {&apos;print $7&apos;}` 
+    if [ -z $onrack_ip ]; then
+        echo &quot;ERROR: can&apos;t get the IP address&quot;
+        exit 1
+    else
+        echo &quot;onrack IP is got: $onrack_ip&quot;
+    fi
+fi
+popd
+echo &quot;OnRack is deployed successfully&quot;
+
+echo &quot;update test config files&quot;
+cp test_config/conf.xml test_private/
+cp test_config/stack_requirement.json test_private/configure/
+
+
+pushd test_private/utilities
+commit=`git log -n 1 | grep &quot;^commit &quot; | awk &apos;{print $2}&apos;`
+echo &quot;the latest commit of Puffer is $commit&quot;
+
+echo &quot;start to deploy vracksystem&quot;
+[ -f ../../test.json ] &amp;&amp; rm -f ../../test.json
+python Util_Manipulate.py -f stack_requirement.json -l $new_files -n &quot;CI_test&quot; -d 30 --whitelist=[&quot;$onrack_name&quot;]
+
+if [ ! -f ../../test.json ]; then
+    echo &quot;ERROR: vrack configure file is not generated&quot;
+    exit 1
+fi
+echo &quot;end to deploy vracksystem&quot;
+popd
+
+pushd ansible_ci
+sed -i &apos;/\[onrack\]/{n;d}&apos; hosts
+sed -i &quot;/\[onrack\]/a${onrack_ip}&quot; hosts
+export ANSIBLE_HOST_KEY_CHECKING=False
+ansible-playbook -i hosts ci.yml
+popd
+
+echo &quot;save the artifact info&quot;
+[ -d last_build_info ] &amp;&amp; rm -rf last_build_info/*
+log_folder=&quot;${WORKSPACE}/test_private/log/OnRack/&quot; 
+test_log=`ls $log_folder -t |  head -1`
+echo &quot;the new test log is $test_log&quot;
+cp -rf $log_folder$test_log ./last_build_info/test_log
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>test.json</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
+    </hudson.tasks.ArtifactArchiver>
+    <hudson.tasks.junit.JUnitResultArchiver plugin="junit@1.13">
+      <testResults>last_build_info/test_log/junit_task.xml</testResults>
+      <keepLongStdio>false</keepLongStdio>
+      <healthScaleFactor>1.0</healthScaleFactor>
+      <allowEmptyResults>false</allowEmptyResults>
+    </hudson.tasks.junit.JUnitResultArchiver>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.timestamper.TimestamperBuildWrapper plugin="timestamper@1.7.4"/>
+    <hudson.plugins.ansicolor.AnsiColorBuildWrapper plugin="ansicolor@0.4.2">
+      <colorMapName>xterm</colorMapName>
+    </hudson.plugins.ansicolor.AnsiColorBuildWrapper>
+  </buildWrappers>
+</project>

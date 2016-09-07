@@ -1,0 +1,59 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>HW_TYPE</name>
+          <description>quanta_d51, quanta_t41,rinjin,dell_c6320,dell_r630,hawk and vnode are supported by far</description>
+          <defaultValue>quanta_t41</defaultValue>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <assignedNode>durham_build_server</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+cp utilities/build/build.sh ./
+
+./build.sh ${HW_TYPE}
+
+pushd tools/ova_builder
+sudo ./ova_builder.sh -d ../../idic/pdk/linux/${HW_TYPE}/ -t vbmc_${HW_TYPE}_pub.ova
+if [ -f vbmc_${HW_TYPE}_pub.ova ]; then
+	sudo chmod 777 vbmc_${HW_TYPE}_pub.ova
+    ../../../infrasim_build/shell/scp_transfer.exp 10.62.59.99 idicwebui 1234567 vbmc_${HW_TYPE}_pub.ova /home/idicwebui/yukisf/github/vracksystem_private/ova
+else
+    exit 1
+fi
+popd</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>tools/ova_builder/*.ova,idic/pdk/linux/${HW_TYPE}/*</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
+    </hudson.tasks.ArtifactArchiver>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.timestamper.TimestamperBuildWrapper plugin="timestamper@1.7.4"/>
+    <hudson.plugins.ansicolor.AnsiColorBuildWrapper plugin="ansicolor@0.4.2">
+      <colorMapName>xterm</colorMapName>
+    </hudson.plugins.ansicolor.AnsiColorBuildWrapper>
+  </buildWrappers>
+</project>
